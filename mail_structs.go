@@ -77,12 +77,29 @@ type Envelope struct {
 }
 
 type Seq struct {
-	Start uint32 `json:"start"`
-	Stop  uint32 `json:"stop"`
+	/*
+		Start uint32 `json:"start"`
+		Stop  uint32 `json:"stop"`
+	*/
+	Start, Stop uint32
 }
 
 type SeqSet struct {
 	Set []Seq `json:"set"`
+}
+
+func (ss *SeqSet) FromNative(nss *imap.SeqSet) {
+	ss.Set = make([]Seq, len(nss.Set))
+	for i, s := range nss.Set {
+		ss.Set[i] = Seq(s)
+	}
+}
+
+func (ss *SeqSet) ToNative(nss *imap.SeqSet) {
+	nss.Set = make([]imap.Seq, len(ss.Set))
+	for i, s := range ss.Set {
+		nss.Set[i] = imap.Seq(s)
+	}
 }
 
 type SearchCriteria struct {
@@ -107,6 +124,69 @@ type SearchCriteria struct {
 
 	Not []*SearchCriteria    `json:"not,omitempty"` // Each criteria doesn't match
 	Or  [][2]*SearchCriteria `json:"or,omitempty"`  // Each criteria pair has at least one match of two
+}
+
+func (sc *SearchCriteria) ToNative(nsc *imap.SearchCriteria) {
+	if nsc == nil {
+		panic("Provided nil native search criteria to native")
+	}
+	if sc.SeqNum != nil {
+		nsc.SeqNum = &imap.SeqSet{}
+		sc.SeqNum.ToNative(nsc.SeqNum)
+	} else {
+		nsc.SeqNum = nil
+	}
+
+	if sc.Uid != nil {
+		nsc.Uid = &imap.SeqSet{}
+		sc.Uid.ToNative(nsc.Uid)
+	} else {
+		nsc.Uid = nil
+	}
+
+	nsc.Since = sc.Since
+	nsc.Before = sc.Before
+	nsc.SentSince = sc.SentSince
+	nsc.SentBefore = sc.SentBefore
+
+	nsc.Header = sc.Header
+	nsc.Body = sc.Body
+	nsc.Text = sc.Text
+
+	nsc.Larger = sc.Larger
+	nsc.Smaller = sc.Smaller
+
+	// go does quite well with big stacks
+	// so recursing is fine
+	if len(sc.Not) == 0 {
+		nsc.Not = nil
+	} else {
+		nsc.Not = make([]*imap.SearchCriteria, len(sc.Not))
+		for i, c := range sc.Not {
+			if c == nil {
+				continue
+			}
+			nsc.Not[i] = &imap.SearchCriteria{}
+			c.ToNative(nsc.Not[i])
+		}
+	}
+
+	if len(sc.Or) == 0 {
+		nsc.Or = nil
+	} else {
+		nsc.Or = make([][2]*imap.SearchCriteria, len(sc.Or))
+		for i, c := range sc.Or {
+			if c[0] != nil {
+				nsc.Or[i][0] = &imap.SearchCriteria{}
+				c[0].ToNative(nsc.Or[i][0])
+			}
+
+			if c[1] != nil {
+				nsc.Or[i][1] = &imap.SearchCriteria{}
+				c[1].ToNative(nsc.Or[i][1])
+			}
+		}
+	}
 }
 
 type MailboxStatus struct {

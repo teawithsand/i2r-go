@@ -1,5 +1,7 @@
 package i2r
 
+import "io"
+
 // TODO(teawithsand): implement uid operations
 
 type IMAPListMailboxRequest struct {
@@ -29,7 +31,7 @@ type IMAPCreateMailboxRequest struct {
 	Name string `json:"name"`
 }
 
-type IMAPCreatMailboxResponse struct {
+type IMAPCreateMailboxResponse struct {
 }
 
 type IMAPDeleteMailboxRequest struct {
@@ -56,21 +58,13 @@ type IMAPSelectMailboxRequest struct {
 	Name     string `json:"name"`
 	ReadOnly bool   `json:"read_only"`
 }
-type IMAPSelectMaibloxResponse struct {
+type IMAPSelectMailboxResponse struct {
 	Status MailboxStatus `json:"status"`
 }
 
 type IMAPExpungeRequest struct{}
 type IMAPExpungeResponse struct {
 	// ignore returned seq nums?
-}
-
-type IMAPFetchRequest struct {
-	SS    SeqSet   `json:"ss"`
-	Items []string `json:"items"`
-}
-type IMAPFetchResponse struct {
-	// respoonse is now streammed in chunks
 }
 
 type IMAPSearchRequest struct {
@@ -91,3 +85,36 @@ type IMAPStoreResponse struct {
 
 type IMAPCheckRequest struct{}
 type IMAPCheckResponse struct{}
+
+type IMAPFetchRequest struct {
+	SS         SeqSet   `json:"ss"`
+	Items      []string `json:"items"`
+	RespChanID []byte   `json:"id"`
+}
+type IMAPFetchResponse struct {
+	// respoonse is now streammed in chunks
+}
+
+// now after fetch command we are in RECV stage
+// here we can use our api to request only specific body parts
+// using api
+
+// IMAPFetchStreamResponse has special marshalling and represents single body section name.
+// This message has special streamming marshaler written
+// which allows streamming content receiving
+type IMAPFetchStreamResponse struct {
+	Reader io.ReadCloser // return actual data in chunks with size and end with zero sized chunk
+}
+
+// Notify about message got
+type IMAPFetchGotMessageResponse struct {
+	Index uint64 `json:"index"`
+}
+
+// Now fetch it
+type IMAPFetchBodyRequest struct {
+	BodyPartNameIdx int `json:"body_part_name_idx"`
+}
+
+// Or skip it
+type IMAPGoToNextMailRequest struct{}

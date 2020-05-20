@@ -106,6 +106,11 @@ type IMAPFetchStreamResponse struct {
 	Reader io.ReadCloser // return actual data in chunks with size and end with zero sized chunk
 }
 
+type IMAPFetchStreamResponsePart struct {
+	Data         []byte `json:"data"`
+	IsFinalChunk bool   `json:"is_final_chunk"`
+}
+
 // Notify about message got
 type IMAPFetchGotMessageResponse struct {
 	Index uint64 `json:"index"`

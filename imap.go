@@ -32,11 +32,11 @@ type IMAPRequest struct {
 
 type IMAPResponse struct {
 	ID      []byte
-	IsFinal bool
+	IsFinal bool // IsFinal is NOOP right now and is ignored
 	Msg     interface{}
 }
 
-type NewIMAPHandler struct {
+type IMAPHandler struct {
 	backgroundTaskContext context.Context
 	backgroundTaskCloser  context.CancelFunc
 	// Message router routes variable messages being interface{}
@@ -46,7 +46,7 @@ type NewIMAPHandler struct {
 	internalHandler internalIMAPHandler
 }
 
-func NewNewIMAPHandler(outputChannel chan<- IMAPResponse, cl *client.Client) *NewIMAPHandler {
+func NewIMAPHandler(outputChannel chan<- IMAPResponse, cl *client.Client) *IMAPHandler {
 	ctx := context.Background()
 	ctx, closer := context.WithCancel(ctx)
 
@@ -70,7 +70,7 @@ func NewNewIMAPHandler(outputChannel chan<- IMAPResponse, cl *client.Client) *Ne
 		}
 	}()
 
-	h := &NewIMAPHandler{
+	h := &IMAPHandler{
 		backgroundTaskContext: ctx,
 		backgroundTaskCloser:  closer,
 		router:                util.NewMessageRouter(fallbackChannel),
@@ -137,7 +137,6 @@ func NewNewIMAPHandler(outputChannel chan<- IMAPResponse, cl *client.Client) *Ne
 						responseChannel,
 						msgChan,
 					)
-
 				})
 			} else if err != nil {
 				sendMessage(IMAPResponse{
@@ -150,32 +149,27 @@ func NewNewIMAPHandler(outputChannel chan<- IMAPResponse, cl *client.Client) *Ne
 					Msg: res,
 				})
 			}
-
-			// TODO(teaiwhtsand): Separate quit handler here, which sets IsFinal to true
 		}
 	})
-
-	// TODO(teawithsand): register main background handler here
-
 	return h
 }
 
 // CancelationContext is context which should be used with outputChannel.
 // It will be closed as soon as Close methods will be called on handler.
-func (h *NewIMAPHandler) CancelationContext() context.Context {
+func (h *IMAPHandler) CancelationContext() context.Context {
 	return h.backgroundTaskContext
 }
 
 // Close kills all background tasks.
 // After handler is closed Handle* functions must be called no more.
-func (h *NewIMAPHandler) Close() error {
+func (h *IMAPHandler) Close() error {
 	h.backgroundTaskCloser()
 	return nil
 }
 
 // launchBackgroundTask creates new goroutine and registers handler.
 // It registers handler before running it and unregisters it after it's done.
-func (h *NewIMAPHandler) launchBackgroundTask(id []byte, handler func(<-chan interface{})) {
+func (h *IMAPHandler) launchBackgroundTask(id []byte, handler func(<-chan interface{})) {
 	c := make(chan interface{})
 	h.router.RegisterSink(util.SinkID(id), c)
 	go func() {
@@ -196,11 +190,11 @@ func generateNewTaskID() (string, error) {
 }
 
 // HandleRequest handles requests and sends response to outputChannel.
-// Output channel is passed during handler construction, since it allows background tasks to access it during NewIMAPHandler lifetime.
+// Output channel is passed during handler construction, since it allows background tasks to access it during IMAPHandler lifetime.
 // Note: this function returns only critical errors, which prevent it from operating.
 // Note #2: context passed here times out only this given request. Handler won't fail and future calls to handleRequest may be done safely
 // despite the fact that error is returned from this func.
-func (h *NewIMAPHandler) HandleRequest(ctx context.Context, r IMAPRequest) (err error) {
+func (h *IMAPHandler) HandleRequest(ctx context.Context, r IMAPRequest) (err error) {
 	// should the client generate query id rather than server?
 	id := r.ID
 	_ = id
@@ -212,7 +206,7 @@ func (h *NewIMAPHandler) HandleRequest(ctx context.Context, r IMAPRequest) (err 
 
 // forwardSingleToInternal runs internal handling routine for specified message.
 // This function handles methods which return single message in response.
-func (h *NewIMAPHandler) forwardSingleToInternal(ctx context.Context, rawMsg interface{}) (res interface{}, err error) {
+func (h *IMAPHandler) forwardSingleToInternal(ctx context.Context, rawMsg interface{}) (res interface{}, err error) {
 	var rerr error
 
 	defer func() {
@@ -273,7 +267,7 @@ func (h *NewIMAPHandler) forwardSingleToInternal(ctx context.Context, rawMsg int
 	return
 }
 
-func (h *NewIMAPHandler) forwardFetchToInternal(
+func (h *IMAPHandler) forwardFetchToInternal(
 	ctx context.Context,
 	initMsg IMAPFetchRequest,
 	responseChan chan<- interface{},
